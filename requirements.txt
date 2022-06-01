@@ -11,6 +11,8 @@ numpy
 pyproj
 scipy
 tqdm
-xarray
 cached-property
+pandas
 pyyaml
+setuptools
+xarray
