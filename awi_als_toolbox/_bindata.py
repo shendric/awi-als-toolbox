@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 
-
-import tqdm
 import struct
 
+from typing import Dict
 from loguru import logger
 from collections import OrderedDict
 from cached_property import cached_property
@@ -71,7 +70,7 @@ class AirborneLaserScannerFile(object):
         fstop = self.line_timestamp[-1]
 
         # Get list of intervals
-        ranges = np.arange(fstart, fstop+int(0.5*segment_size_secs), segment_size_secs)
+        ranges = np.arange(fstart, fstop + int(0.5 * segment_size_secs), segment_size_secs)
         start_secs = ranges[:-1]
         end_secs = ranges[1:]
 
@@ -121,15 +120,15 @@ class AirborneLaserScannerFile(object):
         # Read the binary data.
         # NOTE: This is done per line and not in bulk to allow the variable definition
         #       to be incomplete as the data content of earlier files is not always
-        #       well defined. As a minimum the variables time, longitude, latitude and
+        #       well-defined. As a minimum the variables time, longitude, latitude and
         #       elevation should always be present and will be read correctly if the
         #       reader is always positioned at the start byte of a particular line
         with open(self.filepath, 'rb') as f:
 
-            #for i in tqdm.tqdm(np.arange(n_selected_lines), desc="Parse lines"):
+            # for i in tqdm.tqdm(np.arange(n_selected_lines), desc="Parse lines"):
             for i in np.arange(n_selected_lines):
-                if i%int(n_selected_lines/10)==0:
-                    logger.info('Parse lines: %i%%' %np.ceil(i/(n_selected_lines)*100))
+                if i % int(n_selected_lines / 10) == 0:
+                    logger.info('Parse lines: %i%%' % np.ceil(i / n_selected_lines * 100))
 
                 # Position to the start byte of the current line
                 f.seek(startbyte)
@@ -149,7 +148,7 @@ class AirborneLaserScannerFile(object):
 
                 # Go to next line
                 startbyte = np.uint64(startbyte + nbytes)
-                
+
             logger.info('Parse lines: 100% and finished')
 
         # Convert timestamp (seconds since start of the UTC day -> seconds since 1970-01-01)
@@ -179,9 +178,7 @@ class AirborneLaserScannerFile(object):
 
         # Init the output array
         epoch_offset_seconds = (self.source_epoch - self.target_epoch).total_seconds()
-        time = timestamp + epoch_offset_seconds
-
-        return time
+        return timestamp + epoch_offset_seconds
 
     def _validate_time_range(self, start, stop):
         """ Check for oddities in the time range selection """
@@ -212,7 +209,7 @@ class AirborneLaserScannerFile(object):
         :return:
         """
         # Start with an empty dictionary
-        shot_vars = dict()
+        shot_vars = {}
 
         # Add all per shot variables
         per_shot_variables = self.per_shot_variables
@@ -223,7 +220,7 @@ class AirborneLaserScannerFile(object):
         # Add all per line variables
         # NOTE: This is only relevant for file version 2 and will not add any
         #       variables for file version 1
-        line_vars = dict()
+        line_vars = {}
         per_line_variables = self.per_line_variables
         for variable_name in per_line_variables:
             dtypes = per_line_variables[variable_name]
@@ -317,9 +314,9 @@ class AirborneLaserScannerFile(object):
         :return: OrderedDict
         """
         return OrderedDict((('timestamp', (np.float64, Double)),
-                                          ('longitude', (np.float64, Double)),
-                                          ('latitude', (np.float64, Double)),
-                                          ('elevation', (np.float64, Double))))
+                            ('longitude', (np.float64, Double)),
+                            ('latitude', (np.float64, Double)),
+                            ('elevation', (np.float64, Double))))
 
     @cached_property
     def per_line_variables(self):
@@ -385,7 +382,6 @@ class AirborneLaserScannerFileV2(AirborneLaserScannerFile):
             )
         )
 
-
     @cached_property
     def per_line_variables(self):
         """
@@ -433,17 +429,17 @@ class ALSFileHeader(object):
         self._header_info_dict = {}
 
         # Header information of the form (variable_name, [number of bytes, struct format])
-        bytes_per_line = [2, '>H'] if not bytes_per_line_is_long else [4, '>L']
+        bytes_per_line = [4, '>L'] if bytes_per_line_is_long else [2, '>H']
         self.header_dict = OrderedDict((('scan_lines', [4, '>L']),
-                                       ('data_points_per_line', [2, '!H']),
-                                       ('bytes_per_line', bytes_per_line),
-                                       ('bytes_sec_line', [8, '>Q']),
-                                       ('year', [2, '>H']),
-                                       ('month', [1, '>b']),
-                                       ('day', [1, '>b']),
-                                       ('start_time_sec', [4, '>L']),
-                                       ('stop_time_sec', [4, '>L']),
-                                       ('device_name', [8, '>8s'])))
+                                        ('data_points_per_line', [2, '!H']),
+                                        ('bytes_per_line', bytes_per_line),
+                                        ('bytes_sec_line', [8, '>Q']),
+                                        ('year', [2, '>H']),
+                                        ('month', [1, '>b']),
+                                        ('day', [1, '>b']),
+                                        ('start_time_sec', [4, '>L']),
+                                        ('stop_time_sec', [4, '>L']),
+                                        ('device_name', [8, '>8s'])))
         self._parse_header(filepath)
 
         # This is legacy code
@@ -461,7 +457,7 @@ class ALSFileHeader(object):
 
             # Read header size
             self.byte_size = struct.unpack('>b', f.read(1))[0]
-            logger.info("als_header.byte_size: %s" % str(self.byte_size))
+            logger.info(f"als_header.byte_size: {str(self.byte_size)}")
             if self.byte_size == 36:
                 self.header_dict['data_points_per_line'] = [1, '>B']
             elif self.byte_size == 37:
@@ -546,6 +542,7 @@ class ALSPointCloudData(object):
     def __init__(self, shot_vars, line_vars, segment_window=None):
         """
         Data container for ALS data ordered in scan lines.
+
         :param shot_vars:
         :param line_vars:
         :param segment_window:
@@ -559,7 +556,14 @@ class ALSPointCloudData(object):
         # save data arrays
         self._shot_vars = shot_vars
         self._line_vars = line_vars
-        
+
+        # projection / ice drift correction properties
+        self.x = None
+        self.y = None
+        self.IceDriftCorrected = False
+        self.IceCoordinateSystem = None
+        self.projection = None
+
         # add new weights field
         self.set_weights()
 
@@ -567,17 +571,22 @@ class ALSPointCloudData(object):
         self._set_metadata()
 
     def init_IceDriftCorrection(self):
-        self.x = np.empty(self.get("longitude").shape)*np.NaN
-        self.y = np.empty(self.get("longitude").shape)*np.NaN
-        self.IceDriftCorrected   = False
-        self.IceCoordinateSystem = None
-        self.projection = None
+        """
+        Initializes (x, y) cartesian coordinates used for icedrift correction
+        :return:
+        """
+        self.x = np.empty(self.get("longitude").shape) * np.NaN
+        self.y = np.empty(self.get("longitude").shape) * np.NaN
 
     def set_debug_data(self, **kwargs):
         self.debug_data.update(kwargs)
 
     def sanitize(self):
-        """ Run a series of test to identify illegal data points (e.g. out of bounds lon/lat, etc) """
+        """
+        Run a series of test to identify illegal data points (e.g. out of bounds lon/lat, etc)
+
+        :return:
+        """
 
         # Find illegal latitude values
         latitude = self.get("latitude")
@@ -596,6 +605,7 @@ class ALSPointCloudData(object):
     def _set_metadata(self):
         """
         Get metadata from the data arrays
+
         :return:
         """
 
@@ -691,7 +701,7 @@ class ALSPointCloudData(object):
     @property
     def ref_time(self):
         tcs, tce = self.tcs_segment_time, self.tce_segment_time
-        return tcs + 0.5*(tce-tcs)
+        return tcs + 0.5 * (tce - tcs)
 
     @property
     def time_bnds(self):
@@ -770,7 +780,8 @@ class ALSPointCloudData(object):
         :return:
         """
         grid_variables = list(self.shot_variables)
-        for non_grid_variable in ["longitude", "latitude"]:#["timestamp", "longitude", "latitude"]:
+        # TODO: What about timestamp?
+        for non_grid_variable in ["longitude", "latitude"]:  # ["timestamp", "longitude", "latitude"]:
             try:
                 grid_variables.remove(non_grid_variable)
             except ValueError:
@@ -783,7 +794,7 @@ class ALSPointCloudData(object):
         :param attr:
         :return:
         """
-        if attr=='weights' and not attr in self.line_variables:
+        if attr == 'weights' and attr not in self.line_variables:
             self.set_weights()
         if attr in self.shot_variables:
             return self._shot_vars[attr]
@@ -805,14 +816,14 @@ class ALSPointCloudData(object):
             self._line_vars[attr] = var
         else:
             return None
-        
+
     def set_weights(self):
         """
-        Set weights depending of angle of view
+        Set weights depending on angle of view
         """
-        wght = ((1-np.linspace(0,1,self.dims[1]))*np.linspace(0,1,self.dims[1]))
+        wght = ((1 - np.linspace(0, 1, self.dims[1])) * np.linspace(0, 1, self.dims[1]))
         wght /= np.max(wght)
-        wght = np.tile(wght,(self.dims[0],1))
+        wght = np.tile(wght, (self.dims[0], 1))
         self._shot_vars['weights'] = wght
 
 
@@ -827,7 +838,7 @@ class ALSMetadata(object):
                  "standard_name_vocabulary", "date_created", "creator_name", "creator_url", "creator_email",
                  "institution", "project", "publisher_name", "publisher_url", "publisher_email",
                  "geospatial_bound", "geospatial_bounds_crs", "geospatial_bounds_vertical_crs",
-                 "geospatial_lat_min",  "geospatial_lat_max", "geospatial_lon_min", "geospatial_lon_max",
+                 "geospatial_lat_min", "geospatial_lat_max", "geospatial_lon_min", "geospatial_lon_max",
                  "geospatial_vertical_min", "geospatial_vertical_max", "time_coverage_start", "time_coverage_end",
                  "time_coverage_duration", "time_coverage_resolution", "creator_type", "creator_institution",
                  "publisher_type", "publisher_institution", "program", "contributor_name", "contributor_role",
@@ -883,11 +894,8 @@ class ALSMetadata(object):
             if isinstance(value, datetime) and datetime2iso8601:
                 value = value.isoformat()
             setattr(self, key, value)
-        else:
-            if raise_on_error:
-                raise ValueError("invalid metadata attribute name: %s" % str(key))
-            else:
-                pass
+        elif raise_on_error:
+            raise ValueError(f"invalid metadata attribute name: {str(key)}")
 
     def copy(self):
         """ Returns a copy of the current metadata, e.g. if a derived product inherits part of the metadata """
@@ -897,8 +905,12 @@ class ALSMetadata(object):
         return cls
 
     @property
-    def attribute_dict(self):
-        """ Returns an attribute dict (not None attributes only) """
+    def attribute_dict(self) -> Dict:
+        """
+        Returns an attribute dict (not None attributes only)
+
+        :return:
+        """
         return {key: getattr(self, key) for key in self.ATTR_DICT if getattr(self, key) is not None}
 
     @property

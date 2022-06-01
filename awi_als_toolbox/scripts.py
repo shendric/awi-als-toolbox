@@ -24,8 +24,11 @@ import awi_als_toolbox.freeboard as freeboard
 from awi_als_toolbox.filter import OffsetCorrectionFilter
 
 
-
-def als_l1b2dem(als_filepath, dem_cfg, output_cfg, file_version=1, use_multiprocessing=False,
+def als_l1b2dem(als_filepath,
+                dem_cfg,
+                output_cfg,
+                file_version=1,
+                use_multiprocessing=False,
                 mp_reserve_cpus=2):
     """
     Grid a binary point cloud file with given grid specification and in segments of
@@ -57,12 +60,11 @@ def als_l1b2dem(als_filepath, dem_cfg, output_cfg, file_version=1, use_multiproc
         # without overloading the CPU
         n_processes = multiprocessing.cpu_count()
         n_processes -= mp_reserve_cpus
-        n_processes = n_processes if n_processes > 1 else 1
+        n_processes = max(n_processes, 1)
         # Create process pool
-        logger.info("Use multi-processing with {} workers".format(n_processes))
+        logger.info(f"Use multi-processing with {n_processes} workers")
         process_pool = multiprocessing.Pool(n_processes)
 
-        
     # Grid the data and write the output in a netCDF file
     # This can either be run in parallel or
     if use_multiprocessing:
@@ -72,7 +74,7 @@ def als_l1b2dem(als_filepath, dem_cfg, output_cfg, file_version=1, use_multiproc
                                                                      start_sec, stop_sec, 
                                                                      i, n_segments)) 
                    for i, (start_sec, stop_sec) in enumerate(segments)]
-        result =[iresult.get() for iresult in results]
+        result = [iresult.get() for iresult in results]
     else:
         # Loop over all segments
         for i, (start_sec, stop_sec) in enumerate(segments):
@@ -87,9 +89,10 @@ def als_l1b2dem(als_filepath, dem_cfg, output_cfg, file_version=1, use_multiproc
 def get_als_segments(als_filepaths, dem_cfg, file_version=1):
     """
     Function to return segements of all binary ALS point cloud files provided
+
     :param als_filepaths: list of full filepaths of all binary ALS point could files
     :param dem_cfg: (awi_als_toolbox.demgen.AlsDEMCfg)
-    "param file_version:
+    :param file_version:
     :return:"
     """
     output = {'als_filepath': [],
@@ -125,11 +128,13 @@ def get_als_file(als_filepath, file_version, dem_cfg):
     """
     Open a binary point cloud file with given grid specification and slice in segments of
     a given temporal coverage
+
     :param als_filepath: (str, pathlib.Path): The full filepath of the binary ALS point cloud file
     :param dem_cfg: (awi_als_toolbox.demgen.AlsDEMCfg):
     :param file_version:
     :return: awi_als_toolbox.ALSPointCloudData
     """
+
     # --- Step 1: connect to the ALS binary point cloud file ---
     #
     # At the moment there are two options:
@@ -144,21 +149,22 @@ def get_als_file(als_filepath, file_version, dem_cfg):
     # Input validation
     als_filepath = Path(als_filepath)
     if not als_filepath.is_file():
-        logger.error("File does not exist: {}".format(str(als_filepath)))
+        logger.error(f"File does not exist: {str(als_filepath)}")
         sys.exit(1)
 
     # Connect to the input file
     # NOTE: This step will not read the data, but read the header metadata information
     #       and open the file for sequential reading.
-    logger.info("Open ALS binary file: {} (file version: {})".format(als_filepath.name, file_version))
+    logger.info(f"Open ALS binary file: {als_filepath.name} (file version: {file_version})")
+
     if file_version == 1:
         alsfile = AirborneLaserScannerFile(als_filepath, **dem_cfg.connect_keyw)
     elif file_version == 2:
         alsfile = AirborneLaserScannerFileV2(als_filepath)
     else:
-        logger.error("Unknown file format: {}".format(dem_cfg.input.file_version))
+        logger.error(f"Unknown file format: {dem_cfg.input.file_version}")
         sys.exit(1)
-        
+
     return alsfile
         
     
@@ -236,4 +242,4 @@ def gridding_workflow(als, dem_cfg, output_cfg):
     # create
     nc = AlsDEMNetCDF(dem, output_cfg)
     nc.export()
-    logger.info("... exported to: %s" % nc.path)
+    logger.info(f"... exported to: {nc.path}")

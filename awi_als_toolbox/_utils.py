@@ -34,15 +34,15 @@ def get_cls(module_name, class_name, relaxed=True):
     """ Small helper function to dynamically load classes"""
     try:
         module = importlib.import_module(module_name)
-    except ImportError:
+    except ImportError as e:
         if relaxed:
             return None
         else:
-            raise ImportError("Cannot load module: %s" % module_name)
+            raise ImportError(f"Cannot load module: {module_name}") from e
     try:
         return getattr(module, class_name)
-    except AttributeError:
+    except AttributeError as exc:
         if relaxed:
             return None
         else:
-            raise NotImplementedError("Cannot load class: %s.%s" % (module_name, class_name))
+            raise NotImplementedError(f"Cannot load class: {module_name}.{class_name}") from exc
