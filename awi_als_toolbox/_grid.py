@@ -731,7 +731,7 @@ class ALSGridCollection(object):
                 else:
                     tie_point_times = None
 
-                logger.info("ELEVCOR: Offest correction term is computed for variable: %s" % ivar)
+                logger.info(f"ELEVCOR: Offest correction term is computed for variable: {ivar}")
                 cfg.offset_correction['compute_cor_func']['export_dir'] = merged_grid.export_dir
                 merged_grid.correction[ivar].compute_cor_func(**cfg.offset_correction['compute_cor_func'])
 
@@ -910,13 +910,19 @@ class ALSMergedGrid(object):
         self.cfg = cfg
         # print(self.cfg.offset_correction['correcting_fields'])
         try:
-            self.grid_variable_names = [i for i in self.cfg.variable_attributes.keys() if i not in self.coord_names and not i.endswith('_offset_cor_uncertainty')]
+            self.grid_variable_names = [
+                i for i in self.cfg.variable_attributes.keys()
+                if i not in self.coord_names and not i.endswith('_offset_cor_uncertainty')]
             self.correcting_fields = self.cfg.offset_correction['correcting_fields']
-            self.correction = {ivar:ALSCorrection(ivar) for ivar in self.correcting_fields}
-            self.uncertainty_fields = [i.split('_')[0] for i in self.cfg.variable_attributes.keys() if i not in self.coord_names and i.endswith('_offset_cor_uncertainty')]
+            self.correction = {ivar: ALSCorrection(ivar) for ivar in self.correcting_fields}
+            self.uncertainty_fields = [
+                i.split('_')[0] for i in self.cfg.variable_attributes.keys()
+                if i not in self.coord_names and i.endswith('_offset_cor_uncertainty')]
             logger.info(f'ELEVCOR: Unvertainty computation activated for: {", ".join(self.uncertainty_fields)}')
             for ikey in self.cfg.offset_correction:
-                logger.info("ELEVCOR CFG: %s: %s" %(ikey,self.cfg.offset_correction[ikey]))
+                logger.info(f"ELEVCOR CFG: {ikey}: {self.cfg.offset_correction[ikey]}")
+
+        # TODO: All kinds of exceptions can be raised in the block above. Need to be more specific.
         except:
             logger.error("No configuration file provided: only evelation will be gridded")
             self.grid_variable_names = ['elevation']
@@ -924,7 +930,7 @@ class ALSMergedGrid(object):
 
         try:
             self.export_dir = cfg.export_dir
-        except:
+        except AttributeError:
             self.export_dir = None
 
         # Compute the shape of the full grid
@@ -957,8 +963,9 @@ class ALSMergedGrid(object):
         # p = pyproj.Proj(proj4str)
         # self.lon, self.lat = p(self.xy[0], self.xy[1], inverse=True)
 
-    # TODO: Difficult to understand what is going on here
+    # TODO: Difficult to understand what is going on in `add_grid`
     def add_grid(self, grid):  #, use_low_reflectance_tiepoints=False):
+
         # Save data directory as export directory if not other specified in cfg file
         if self.export_dir is None:
             self.export_dir = grid.filepath.parent
@@ -979,12 +986,12 @@ class ALSMergedGrid(object):
         subset_xi += xi_offset
         merged_valid_indices = (subset_yj, subset_xi)
 
-        ## Loop over correction factors to improve stitching
-        #non_nan_thres = 500
-        #elev_thres = 0.1
-        #x_cor = 0; y_cor = 0
+        # Loop over correction factors to improve stitching
+        # non_nan_thres = 500
+        # elev_thres = 0.1
+        # x_cor = 0; y_cor = 0
 
-        # if np.sum(np.isfinite(self.grid[merged_valid_indices]))>non_nan_thres:
+        # if np.sum(np.isfinite(self.grid[merged_valid_indices])) > non_nan_thres:
 
         # TODO: Temporary fix to align grid segments, needs improvement on GPS solution
         self.lons[merged_valid_indices] = grid.lons[subset_valid_indices]
@@ -1070,13 +1077,13 @@ class ALSMergedGrid(object):
                     )
                     logger.info("correction applied to %s: (min: %f, max: %f)" % (grid_variable_name, np.min(cor_term),np.max(cor_term)))
 
+                # TODO: This clause is never reached? [if not .data_avail elif .data_vail?]
                 else:
 
                     cor_term = np.zeros(grid.nc[grid_variable_name].values[subset_valid_indices].shape)
                 # self.grid[grid_variable_name][merged_valid_indices] = (grid.nc[grid_variable_name].values[subset_valid_indices]-
                 #                                                        cor_term)
             else:
-
                 cor_term = np.zeros(grid.nc[grid_variable_name].values[subset_valid_indices].shape)
 
             self.grid[grid_variable_name][merged_valid_indices] = grid.nc[grid_variable_name].values[subset_valid_indices] - cor_term
@@ -1098,12 +1105,14 @@ class ALSMergedGrid(object):
                                                                                                     cor_term[mask_min])
 
         if self.return_fnames:
-            #for ilist in self.fnms[merged_valid_indices]:
+
+            # for ilist in self.fnms[merged_valid_indices]:
             #    ilist.append(grid.filepath.name)
 
-            #if self.ifnm > 0:
+            # if self.ifnm > 0:
             #    self.fnmmasks = np.vstack([self.fnmmasks,np.zeros((1,self.dims[0],self.dims[1])).astype('bool')])
-            #self.fnmmasks[self.ifnm,merged_valid_indices] = True
+            # self.fnmmasks[self.ifnm,merged_valid_indices] = True
+
             imask = np.zeros(self.dims).astype('bool')
             imask[merged_valid_indices] = True
             self.fnmmasks.append(imask)
@@ -1113,10 +1122,10 @@ class ALSMergedGrid(object):
 
             self.npnts[merged_valid_indices] += 1
 
-            #fig,ax = plt.subplots(1,1,tight_layout=True)
-            #ax.imshow(self.grid[::10,::10].T,vmin=24.5,vmax=27)
-            #fig.savefig('plot_temp_grid/'+grid.filepath.name[:-3]+'.png',dpi=300)
-            #plt.close(fig)
+            # fig,ax = plt.subplots(1,1,tight_layout=True)
+            # ax.imshow(self.grid[::10,::10].T,vmin=24.5,vmax=27)
+            # fig.savefig('plot_temp_grid/'+grid.filepath.name[:-3]+'.png',dpi=300)
+            # plt.close(fig)
 
     def reset_gridded_fields(self):
         for grid_variable_name in self.grid_variable_names:
@@ -1144,7 +1153,9 @@ class ALSMergedGrid(object):
 
         self.reftime = datetime(1970, 1, 1, 0, 0, 0) + timedelta(0, np.mean(self.reftimes))
 
+        # TODO: An file export routine should not change the state of the data
         if recompute_latlon:
+
             try:
                 from floenavi.polarstern import PolarsternAWIDashboardPos
                 from icedrift import GeoReferenceStation, IceCoordinateSystem, GeoPositionData
@@ -1152,9 +1163,10 @@ class ALSMergedGrid(object):
 
                 refstat = PolarsternAWIDashboardPos(self.reftime,self.reftime).reference_station
 
-                XC,YC = np.meshgrid(self.xc, self.yc)
+                xc, yc = np.meshgrid(self.xc, self.yc)
 
-                icepos, self.heading = IceCoordinateSystem(refstat).get_latlon_coordinates(XC, YC, self.reftime, proj4str=self.proj4str, return_heading=True)
+                # TODO: Change towards global
+                icepos, self.heading = IceCoordinateSystem(refstat).get_latlon_coordinates(xc, yc, self.reftime, proj4str=self.proj4str, return_heading=True)
 
                 self.lons = icepos.longitude
                 self.lats = icepos.latitude
@@ -1279,20 +1291,20 @@ class ALSMergedGrid(object):
         try:
             epoch = datetime(1970, 1, 1, 0, 0, 0)
             template = str(self.cfg.filenaming)
-            filename = template.format(
+            return template.format(
                 field_name=field_name,
                 res=self.fn_res,
                 tcs=(epoch + timedelta(0, self.reftimes[0])).strftime("%Y%m%dT%H%M%S"),
                 tce=(epoch + timedelta(0, self.reftimes[-1])).strftime("%Y%m%dT%H%M%S"),
-                ftype=filetype
-            )
-            return filename
-        except:
+                ftype=filetype)
+
+        # TODO: A ValueError should be raised if no configuration file is given
+        except Exception:
             logger.error("No configuration file given")
             return
 
     def path(self, filetype, field_name='als'):
-        return Path(self.export_dir) / self.filename(filetype,field_name=field_name)
+        return Path(self.export_dir) / self.filename(filetype, field_name=field_name)
 
 
 class ALSCorrection(object):
@@ -1401,51 +1413,50 @@ class ALSCorrection(object):
                 self.t_bins = np.sort(np.array(self.t_bins))
 
             #  2. Bin start and end time of overlapping segments to tie point bins
-            bins_s = np.digitize(self.tmpstmp_s,self.t_bins)-1
-            bins_e = np.digitize(self.tmpstmp_e,self.t_bins)-1
+            bins_s = np.digitize(self.tmpstmp_s, self.t_bins)-1
+            bins_e = np.digitize(self.tmpstmp_e, self.t_bins)-1
 
             if add_tendency:  # self.tie_point_times=='mean':
                 # Add tendency to all bins!
-                bins_m = np.arange(self.t_bins.size-1) # Requires interpolation of mean elevation!!
+                bins_m = np.arange(self.t_bins.size-1)   # Requires interpolation of mean elevation!!
 
                 # # Old code
                 # bins_m = np.digitize(self.mean_elev_t,self.t_bins)-1
                 # # Check if there are segments with mean elevation outside the time period of overlapping data
-                bins_m[bins_m<0] = 0
-                bins_m[bins_m>=self.t_bins.size-1] = self.t_bins.size-2
+                bins_m[bins_m < 0] = 0
+                bins_m[bins_m >= self.t_bins.size-1] = self.t_bins.size-2
 
             #  3. Mark which tie points lie within the start and end time
             if add_tendency:  # self.tie_point_times=='mean':
                 self.matrix = np.zeros((bins_e.size+bins_m.size, self.t_bins.size-1))
             else:
-                self.matrix = np.zeros((bins_e.size,self.t_bins.size-1))
+                self.matrix = np.zeros((bins_e.size, self.t_bins.size-1))
 
-            self.matrix[np.arange(bins_e.size),bins_s] -= 1
-            self.matrix[np.arange(bins_e.size),bins_e] += 1
+            self.matrix[np.arange(bins_e.size), bins_s] -= 1
+            self.matrix[np.arange(bins_e.size), bins_e] += 1
 
-            if add_tendency: #self.tie_point_times=='mean':
+            if add_tendency:   # self.tie_point_times=='mean':
                 self.matrix[bins_e.size+np.arange(bins_m.size),bins_m] += 1
 
             #     Set correction term for zero for some times
             if self.tie_point_times is None:
                 ind_zero = [0]
-                #for iind in ind_zero:
-                #    # Add condition that c[ind_zero] should be zero but as part of 
-                #    # least-square-fit, i.e. not forced
-                #    matrix_set_zero = np.zeros(matrix[0,:].shape)
-                #    matrix_set_zero[iind] = 1
-                #    self.matrix = np.vstack([matrix_set_zero,matrix])
+                # for iind in ind_zero:
+                #     # Add condition that c[ind_zero] should be zero but as part of
+                #     # least-square-fit, i.e. not forced
+                #     matrix_set_zero = np.zeros(matrix[0,:].shape)
+                #     matrix_set_zero[iind] = 1
+                #     self.matrix = np.vstack([matrix_set_zero,matrix])
 
             else:
                 ind_zero = np.digitize(self.tie_point_times, self.t_bins)-1
                 ind_zero[ind_zero <= 0] = 0
                 ind_zero[ind_zero >= self.t_bins.size-1] = self.t_bins.size-2
 
-            #elif self.tie_point_times=='mean':
+            # elif self.tie_point_times=='mean':
             #    ind_zero = []
 
-
-            #     Force ind_zero to be zeros or self.tie_point_vals:
+            # Force ind_zero to be zeros or self.tie_point_vals:
             #      (0) Initialize solution vector
             self.solution = self.diff
             if add_tendency:
@@ -1689,14 +1700,16 @@ def extract_low_reflectance_regions(grid,
     eref_reg = grid.nc['elevation'].data[mask]-grid.nc['elevation_reference'].data[mask]
 
     # Generate background elevation around leads
-    eref = grid.nc['elevation'].data.copy()  #- grid.nc['elevation_reference'].data
+    eref = grid.nc['elevation'].data.copy()  # - grid.nc['elevation_reference'].data
     mask_eref = np.isfinite(eref)
     eref[~mask_eref] = 0
-    emean = uniform_filter(eref, size=background_scale)/uniform_filter(mask_eref.astype('float'), size=background_scale)
+    emean = uniform_filter(
+        eref,
+        size=background_scale)/uniform_filter(mask_eref.astype('float'), size=background_scale)
     emean[~mask_eref] = np.nan
     ebckg_reg = emean[mask] - eref_reg
 
-    # Mask leads, i.e. e<emean
+    # Mask leads, i.e. e < emean
     mask_leads = grid.nc['elevation'].data[mask] < emean[mask]
     t_reg = t_reg[mask_leads]
     eref_reg = eref_reg[mask_leads]
