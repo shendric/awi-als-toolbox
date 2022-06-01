@@ -1,10 +1,10 @@
 cmocean
 construct
+gdal
 loguru
 matplotlib
 netcdf4
 numpy
-osgeo
 pyproj
 scipy
 tqdm
