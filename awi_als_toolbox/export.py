@@ -13,17 +13,25 @@ from collections import OrderedDict
 from ._utils import get_yaml_cfg
 
 
+# TODO: Could be a dataclass
 class AlsDEMNetCDFCfg(object):
     """
     Container for the netCDF output structure
     """
 
-    def __init__(self, filenaming, global_attributes, variable_attributes, export_dir=None, offset_correction=None):
+    def __init__(self,
+                 filenaming,
+                 global_attributes,
+                 variable_attributes,
+                 export_dir=None,
+                 offset_correction=None):
         """
 
         :param filenaming:
-        :param gattrs:
-        :param vars:
+        :param global_attributes:
+        :param variable_attributes:
+        :param export_dir:
+        :param offset_correction:
         """
         self.filenaming = filenaming
         self.global_attributes = global_attributes
@@ -107,7 +115,7 @@ class AlsDEMNetCDF(object):
         # Add grid mapping
         grid_mapping_name, grid_mapping_attrs = self.dem.grid_mapping_items
         if grid_mapping_name is not None:
-            #data_vars[grid_mapping_name] = xr.Variable("grid_mapping", [0], attrs=grid_mapping_attrs)
+            # data_vars[grid_mapping_name] = xr.Variable("grid_mapping", [0], attrs=grid_mapping_attrs)
             data_vars['projection'] = xr.Variable("grid_mapping", [0], attrs=grid_mapping_attrs)
 
         # Get the dimension variables
@@ -125,7 +133,6 @@ class AlsDEMNetCDF(object):
     def export(self):
         """
         Export the grid data as netcdf via xarray.Dataset
-        :param filename:
         :return:
         """
         # Turn on compression for all variables
@@ -137,13 +144,15 @@ class AlsDEMNetCDF(object):
     def filename(self):
         """
         Construct the filename
-        TODO:
         :return:
         """
         template = str(self.cfg.filenaming)
-        filename = template.format(proc_level=self.dem.fn_proc_level, res=self.dem.fn_res,
-                                   tcs=self.dem.fn_tcs, tce=self.dem.fn_tce)
-        return filename
+        return template.format(
+            proc_level=self.dem.fn_proc_level,
+            res=self.dem.fn_res,
+            tcs=self.dem.fn_tcs,
+            tce=self.dem.fn_tce
+        )
 
     @property
     def path(self):
