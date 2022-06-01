@@ -12,6 +12,7 @@ import pyproj
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
+import matplotlib.colors as colors
 
 from matplotlib.colors import LightSource
 
@@ -39,11 +40,7 @@ class AlsDemMap(object):
         self.dem = dem
 
         # Plot configuration (fallback to default if no cfg has been passed)
-        if cfg is None:
-            self.cfg = AlsDemMapCfg()
-        else:
-            self.cfg = cfg
-
+        self.cfg = AlsDemMapCfg() if cfg is None else cfg
         # Logo path (experimental)
         self.logo_path = logo_path
         self.map_extent = None
@@ -54,7 +51,6 @@ class AlsDemMap(object):
         # Basic setup of the figure
         self._init_figure()
 
-
     def show(self):
         """
         Creates an interactive view of the figure (-> plt.show())
@@ -62,11 +58,11 @@ class AlsDemMap(object):
         """
 
         self._create_figure()
-        figManager = plt.get_current_fig_manager()
+        fig_manager = plt.get_current_fig_manager()
         try:
-            figManager.window.showMaximized()
+            fig_manager.window.showMaximized()
         except AttributeError:
-            figManager.window.state('zoomed')
+            fig_manager.window.state('zoomed')
         plt.show()
         plt.close(self.fig)
 
@@ -223,7 +219,7 @@ class AlsDemMap(object):
         """ Write metadata properties in the lower right corner of the plot"""
 
         fmt = "%s UTC (%g)"
-        datetime_format = ("%Y-%m-%d %H:%M:%S")
+        datetime_format = "%Y-%m-%d %H:%M:%S"
         segment_start_label = fmt % (self.dem.als.tcs_segment_datetime.strftime(datetime_format),
                                      self.dem.als.tcs_segment_seconds)
         segment_end_label = fmt % (self.dem.als.tce_segment_datetime.strftime(datetime_format),
@@ -238,8 +234,8 @@ class AlsDemMap(object):
         metadata_props = dict(xycoords="figure fraction", color="#4b4b4d", fontsize=16, ha="left")
 
         xval, yval = 0.6, 0.25
-        for property, attribute_value in batch_metadata:
-            plt.annotate(property, (xval, yval), **metadata_props)
+        for property_, attribute_value in batch_metadata:
+            plt.annotate(property_, (xval, yval), **metadata_props)
             plt.annotate(attribute_value, (xval+0.1, yval), **metadata_props)
             yval -= 0.04
 
@@ -285,7 +281,7 @@ class AlsDemMap(object):
             ref_height -= (top-bottom)
             bottom_off = -0.5*ref_height
             top_off = 0.5*ref_height
-        elif figure_aspect <= self._fig_reference_aspect:
+        else:
             ref_width = (top-bottom) * self._fig_reference_aspect
             ref_width -= (right-left)
             left_off = -0.5*ref_width
@@ -304,15 +300,13 @@ class AlsDemMap(object):
         """
         vmin, vmax = self.cfg.get_cmap_range()
         ls = LightSource(**self.cfg.hillshape_props["ls_props"])
-        rgb = ls.shade(self.dem.dem_z_masked, cmap=self.cfg.cmap, vmin=vmin, vmax=vmax,
-                       dx=self.dem.cfg.resolution, dy=self.dem.cfg.resolution,
-                       **self.cfg.hillshape_props["shade_props"])
-        return rgb
+        return ls.shade(self.dem.dem_z_masked, cmap=self.cfg.cmap, vmin=vmin, vmax=vmax,
+                        dx=self.dem.cfg.resolution, dy=self.dem.cfg.resolution,
+                        **self.cfg.hillshape_props["shade_props"])
 
 
 class AlsDemMapCfg(object):
     """ Container for DEMMap plot configuration data """
-
 
     # --- Default Values ---
 
@@ -337,21 +331,14 @@ class AlsDemMapCfg(object):
     def __init__(self, cmap_props=None, label_dict=None, hillshade_props=None):
         """
         Container for AlsDemMap plot configuration data
+
         :param cmap_props: (dict)
         :param label_dict: (dict)
         :param hillshade_props: (dict)
         """
 
-        if cmap_props is None:
-            self.cmap_props = self.CMAP_DEFAULT_PROPS
-        else:
-            self.cmap_props = cmap_props
-
-        if label_dict is None:
-            self.label_dict = self.AX_DEFAULT_LABELS
-        else:
-            self.label_dict = label_dict
-
+        self.cmap_props = self.CMAP_DEFAULT_PROPS if cmap_props is None else cmap_props
+        self.label_dict = self.AX_DEFAULT_LABELS if label_dict is None else label_dict
         if hillshade_props is None:
             self.hillshape_props = dict(ls_props=self.LIGHTSOURCE_DEFAULT_PROPS,
                                         shade_props=self.SHADE_DEFAULT_PROPS)
@@ -386,8 +373,7 @@ class AlsDemMapCfg(object):
         if self.cmap_props["name"] == "default":
             cmap = truncate_colormap(cmocean.cm.ice, 0.25, 0.95)
         else:
-            raise NotImplementedError("Unkown cmap name: %s" % self.cmap_props["name"])
-
+            raise NotImplementedError(f'Unkown cmap name: {self.cmap_props["name"]}')
         return cmap
 
     def get_cmap_range(self, *args):
@@ -407,10 +393,9 @@ class AlsDemMapCfg(object):
 
         # Catch invalid requests
         else:
-            raise NotImplementedError("Unkown cmap range mode: %s" % str(self.cmap_props['range']))
+            raise NotImplementedError(f"Unkown cmap range mode: {self.cmap_props['range']}")
 
         return vmin, vmax
-
 
     def get_label(self, target):
         """
@@ -446,11 +431,10 @@ class AlsDemMapCfg(object):
                 vmin = vmax - preset_range
             else:
                 msg = "invalid value for option `preset_range_anchor: %s [bottom|top]"
-                msg = msg % str(self.cmap_props['preset_range_anchor'])
+                msg %= str(self.cmap_props['preset_range_anchor'])
                 return ValueError(msg)
 
         return vmin, vmax
-
 
 
 def auto_bins(vmin, vmax, nbins=10):
@@ -469,9 +453,9 @@ def auto_bins(vmin, vmax, nbins=10):
         step *= scale
         best_vmin = step*divmod(vmin, step)[0]
         best_vmax = best_vmin + step*nbins
-        if (best_vmax >= vmax):
+        if best_vmax >= vmax:
             break
-    return (np.arange(nbins+1) * step + best_vmin + offset)
+    return np.arange(nbins + 1) * step + best_vmin + offset
 
 
 def scale_range(vmin, vmax, n=1, threshold=100):
@@ -504,11 +488,10 @@ def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
     :param n:
     :return:
     """
-    import matplotlib.colors as colors
-    new_cmap = colors.LinearSegmentedColormap.from_list(
+    return colors.LinearSegmentedColormap.from_list(
         'trunc({n},{a:.2f},{b:.2f})'.format(n=cmap.name, a=minval, b=maxval),
         cmap(np.linspace(minval, maxval, n)))
-    return new_cmap
+
 
 def get_basemap_args_from_positions(longitude, latitude, aspect=1, scale=1.1, res='h'):
     """
@@ -531,11 +514,11 @@ def get_basemap_args_from_positions(longitude, latitude, aspect=1, scale=1.1, re
     if aspect < 1:
         height *= aspect
 
-    basemap_kwargs = {'projection': 'stere',
-                      'width': width,
-                      'height': height,
-                      'lon_0': lon_0,
-                      'lat_0': lat_0,
-                      'lat_ts': lat_0,
-                      'resolution': res}
-    return basemap_kwargs
+    return {'projection': 'stere',
+            'width': width,
+            'height': height,
+            'lon_0': lon_0,
+            'lat_0': lat_0,
+            'lat_ts': lat_0,
+            'resolution': res
+            }
