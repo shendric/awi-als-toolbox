@@ -575,6 +575,7 @@ class AlsDEMCfg(object):
         return cls(**cfg)
 
     @classmethod
+    #TODO: presets should be a config file
     def preset(cls, mode, **kwargs):
         """
         Return defined presets for data gridding
@@ -806,6 +807,7 @@ class ALSGridCollection(object):
         return self.grids[0].proj4str
 
 
+# TODO: Merge AlsDEM and ALSL4Grid (use netcdf output to serialize the AlsDEM instance)
 class ALSL4Grid(object):
 
     def __init__(self, filepath):
@@ -891,6 +893,7 @@ class ALSL4Grid(object):
         return self.nc.lat.values
 
 
+# TODO: This class needs significant refactoring
 class ALSMergedGrid(object):
 
     def __init__(self, x_min, x_max, y_min, y_max, res_m, proj4str, return_fnames=False, cfg=None):
@@ -972,7 +975,7 @@ class ALSMergedGrid(object):
         # p = pyproj.Proj(proj4str)
         # self.lon, self.lat = p(self.xy[0], self.xy[1], inverse=True)
 
-    # TODO: Difficult to understand what is going on in `add_grid`
+    # TODO: This method is too complex
     def add_grid(self, grid):  #, use_low_reflectance_tiepoints=False):
 
         # Save data directory as export directory if not other specified in cfg file
@@ -1175,7 +1178,9 @@ class ALSMergedGrid(object):
                 xc, yc = np.meshgrid(self.xc, self.yc)
 
                 # TODO: Change towards global
-                icepos, self.heading = IceCoordinateSystem(refstat).get_latlon_coordinates(xc, yc, self.reftime, proj4str=self.proj4str, return_heading=True)
+                icecs = IceCoordinateSystem(refstat)
+                icepos, self.heading = icecs.get_latlon_coordinates(
+                    xc, yc, self.reftime, proj4str=self.proj4str, return_heading=True)
 
                 self.lons = icepos.longitude
                 self.lats = icepos.latitude
