@@ -972,7 +972,7 @@ class ALSMergedGrid(object):
 
         # Add reference time for grid
         self.reftimes.append(grid.nc.time.values[0])
-        self.retimes_unit = grid.nc.time.units
+        self.reftimes_unit = grid.nc.time.units
 
         # Compute the offset indices between merged grid and grid subset
         xi_offset = int((grid.xc_bounds[0]-self.xc_bounds[0])/self.res)
