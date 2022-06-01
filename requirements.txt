@@ -1,3 +1,6 @@
+affine
+attrdict
+bottleneck
 cmocean
 construct
 gdal
@@ -10,4 +13,4 @@ scipy
 tqdm
 xarray
 cached-property
-attrdict
+pyyaml
