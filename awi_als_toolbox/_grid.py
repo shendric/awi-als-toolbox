@@ -1173,7 +1173,7 @@ class ALSMergedGrid(object):
                 from icedrift import GeoReferenceStation, IceCoordinateSystem, GeoPositionData
                 logger.info("Compute ice drift corrected lat/lon values for same reference time")
 
-                refstat = PolarsternAWIDashboardPos(self.reftime,self.reftime).reference_station
+                refstat = PolarsternAWIDashboardPos(self.reftime, self.reftime).reference_station
 
                 xc, yc = np.meshgrid(self.xc, self.yc)
 
