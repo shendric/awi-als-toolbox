@@ -11,15 +11,16 @@ import numpy as np
 import bottleneck as bn
 
 from datetime import datetime, timedelta
+
+import pyproj
 from loguru import logger
 from scipy.interpolate import interp1d
 from pathlib import Path
 import pandas as pd
+from typing import Union, Tuple, Dict
 
 from . import ALSPointCloudData
 
-import floenavi
-from floenavi.polarstern import PolarsternAWIDashboardPos
 from icedrift import GeoReferenceStation, IceCoordinateSystem, GeoPositionData
 
 
@@ -148,95 +149,135 @@ class IceDriftCorrection(ALSPointCloudFilter):
     Corrects for ice drift during data aquisition, using floenavi or Polarstern position
     """
 
-    def __init__(self, use_polarstern=False, reftimes=None):
+    def __init__(self,
+                 refstation_file: str = None,
+                 proj4: str = "auto",
+                 reference_time: Union[str, datetime] = "auto",
+                 ):
         """
-         Initialize the filter.
+        This filter applies a coordinate transformation to account for sea ice drift during the survey.
+        The coordinate transformation is handled by the python package `icedrift`
+        (https://gitlab.awi.de/floenavi-crs/icedrift).
 
-        :param use_polarstern:
-        :param reftimes:
+        Applying the filter will add (x, y) coordinates in a translating & rotating cartesian reference
+        frame (ice coordinate system). The (longitude, latitude) values are also drift corrected as if
+        the entire ALS survey was done instantenously.
+
+        The underlying projection for (x, y) coordinates is chosen automatically by the `icedrift`
+        module, but can be overwritten with a proj4 string.
+
+        This filter also chooses the reference time for the ice drift correction by the reference time
+        from the temporal coverage of the reference station data. It can also be overwritten with
+        a datetime object. In this case the user needs to take care that the custom reference time
+        is within the bounds of the reference station data.
+
+        :param refstation_file: absolute file path to icedrift reference station file.
+            The data for the ice drift correction needs to be a csv file compatible with `
+            icedrift.GeoReferenceStation.from_csv()`. At a minimum, the following info needs to be included:
+
+                time,longitude,latitude,heading
+                2019-12-29 23:53:31,116.15182,86.62111,202.3
+                ...
+
+        :param proj4: (default: auto) The projection used for the icedrift correction. If auto, then
+            the projection will be chosen by `icedrift`
+        :param reference_time: (defaut: auto) A datetime object. If default value, then the reference time
+            will be set to the reference time of the first segment processed with this filter.
         """
-        super(IceDriftCorrection, self).__init__(use_polarstern=use_polarstern, reftimes=reftimes)
 
-        self.icecs = None
+        # TODO: Needs validation
+        kwargs = {
+            "refstation_file": refstation_file,
+            "proj4": proj4,
+            "reference_time": reference_time
+        }
 
-    def apply(self, als):
+        super(IceDriftCorrection, self).__init__(**kwargs)
+
+        # Init the ice coordinate system
+        projection = None if proj4 == "auto" else pyproj.Proj(proj4)
+        refstat = GeoReferenceStation.from_csv(refstation_file)
+        self.icecs = IceCoordinateSystem(refstat, projection=projection)
+
+        # Reference time
+        self.reference_time = reference_time
+
+    def apply(self, als: "ALSPointCloudData") -> None:
         """
-        Apply the filter for all lines in the ALS data container
+        Apply the ice drift correction for all echos.
 
-        :param als:
-        :return:
+        :param als: ALS point-cloud data object
+
+        :return: None, als data is changed in place
         """
 
         logger.info("IceDriftCorrection is applied")
 
-        # 1. Initialise IceDriftStation
-        self._get_IceDriftStation(als, use_polarstern=self.cfg["use_polarstern"])
+        # Determine reference time
+        # NOTE: This method is called for a segment of a single file, but this class remains
+        #       instanced for all segments for a batch run. Thus, if no specific reference
+        #       time for the ice drift correction is specified, the reference time of the
+        #       first segment is stored in this instance and used for all other following
+        #       filter applications.
+        if self.reference_time is None:
+            self.reference_time = als.ref_time
 
-        # 2. Initialise empty x, y arrays in als for the projection
-        als.init_IceDriftCorrection()
+        # Convert the als echoes into an `icedrift.GeoPositionData` instance.
+        # NOTE: Not all entries in the ALS point cloud data have valid longitude, latitude values.
+        #       The GeoPositionData contains only valid entries and
+        als_geo_pos, als_idx = self.get_als_geopos(als)
 
-        # 3. mask nan values for faster computation
+        # Init (x, y) coordinates
+        x = np.full(np.nan, als.dims)
+        y = x.copy()
+        lon = x.copy()
+        lat = x.copy()
+
+        # Compute (x, y) ice coordinates
+        icepos, icecs_transform = self.icecs.get_xy_coordinates(als_geo_pos, transform_output=True)
+        x[als_idx], y[als_idx] = icepos.x, icepos.y
+
+        # Update longitude, latitude values to reflect the (x, y) positions in the
+        # ice coordinate system at the shared reference time
+        geopos = self.icecs.get_latlon_coordinates(icepos.x, icepos.y, self.reference_time)
+        lon[als_idx], lat[als_idx] = geopos.longitude, geopos.latitude
+
+        # Get the projection parameters
+        projection_attrs = self.get_projection_attrs(icecs_transform)
+        projection = dict(name=projection_attrs['grid_mapping_name'], attrs=projection_attrs)
+
+        # Update the ALS point cloud dataset
+        als.set_icedrift_correction(x, y, lon, lat, projection, self.reference_time)
+
+    @staticmethod
+    def get_als_geopos(als: "ALSPointCloudData") -> Tuple["GeoPositionData", np.ndarray]:
+        """
+        Return an icedrift.GeoPositionData as well as the list of indices of valid echoes
+
+        :param als: The point cloud data
+
+        :return icedrift.GeoPositionData, indices that maps geoposition data to als indices)
+        """
+        # Transform only valid positions
         nonan = np.where(np.logical_or(np.isfinite(als.get("longitude")), np.isfinite(als.get("latitude"))))
 
-        # 4. Generate GeoPositionData object from als
+        # Generate GeoPositionData object from als
         epoch = datetime(1970, 1, 1, 0, 0, 0)
         time_als = np.array([epoch + timedelta(0, isec) for isec in als.get("timestamp")[nonan]])
         als_geo_pos = GeoPositionData(time_als, als.get("longitude")[nonan], als.get("latitude")[nonan])
+        return als_geo_pos, nonan
 
-        # 5. Compute projection
-        icepos, self.icecs = self.IceCoordinateSystem.get_xy_coordinates(als_geo_pos, transform_output=True,
-                                                                         global_proj=True)
-
-        # 6. Store projected coordinates
-        als.x[nonan] = icepos.xc
-        als.y[nonan] = icepos.yc
-
-        # 7. Set IceDriftCorrected
-        als.IceDriftCorrected = True
-        als.IceCoordinateSystem = self.IceCoordinateSystem
-
-        # 8. Store projection
-        ikeys = [ik for ik in self.icecs.prj.crs.to_cf().keys() if ik != 'crs_wkt']
-        attrs = {ikey: self.icecs.prj.crs.to_cf()[ikey] for ikey in ikeys}
-        attrs['proj4_string'] = self.icecs.prj.srs
-
-        als.projection = dict(name=attrs['grid_mapping_name'], attrs=attrs)
-
-    def _get_IceDriftStation(self, als, use_polarstern=False):
+    @staticmethod
+    def get_projection_attrs(icecs_transform) -> Dict:
         """
-
-        :param als:
-        :param use_polarstern:
-        :return:
+        Extract and return the projection parameters used for the icedrift
+        coordinate transformation as a dictionary
+        TODO: This could be moved to the icedrift package
         """
-
-        # Check if reftimes are defined
-        if self.cfg["reftimes"] is None:
-            self.cfg["reftimes"] = [als.tcs_segment_datetime, als.tce_segment_datetime]
-
-        # Check for master solutions of Leg 1-3 in floenavi package
-        path_data = os.path.join('/'.join(floenavi.__file__.split('/')[:-2]), 'data/master-solution')
-        ms_sol = np.array([ifile for ifile in os.listdir(path_data) if ifile.endswith('.csv')])
-        ms_sol_dates = np.array([[datetime.strptime(ifile.split('-')[2], '%Y%m%d'),
-                                  datetime.strptime(ifile.split('-')[3], '%Y%m%d')] for ifile in ms_sol])
-
-        ind_begin = np.where(np.logical_and(self.cfg["reftimes"][0] >= ms_sol_dates[:, 0],
-                                            self.cfg["reftimes"][0] <= ms_sol_dates[:, 1]))[0]
-        ind_end = np.where(np.logical_and(self.cfg["reftimes"][1] >= ms_sol_dates[:, 0],
-                                          self.cfg["reftimes"][1] <= ms_sol_dates[:, 1]))[0]
-
-        self.read_floenavi = False
-        if not use_polarstern and ind_begin.size > 0 and ind_end.size > 0 and ind_begin == ind_end:
-            self.read_floenavi = True
-
-        if self.read_floenavi:
-            refstat_csv_file = os.path.join(path_data, ms_sol[ind_begin][0])
-            refstat = GeoReferenceStation.from_csv(refstat_csv_file)
-        else:
-            refstat = PolarsternAWIDashboardPos(self.cfg["reftimes"][0],
-                                                self.cfg["reftimes"][1]).reference_station
-
-        self.IceCoordinateSystem = als.IceCoordinateSystem = IceCoordinateSystem(refstat)
+        ikeys = [ik for ik in icecs_transform.prj.crs.to_cf().keys() if ik != 'crs_wkt']
+        attrs = {ikey: icecs_transform.prj.crs.to_cf()[ikey] for ikey in ikeys}
+        attrs['proj4_string'] = icecs_transform.prj.srs
+        return attrs
 
 
 class OffsetCorrectionFilter(ALSPointCloudFilter):

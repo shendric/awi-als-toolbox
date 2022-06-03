@@ -557,12 +557,11 @@ class ALSPointCloudData(object):
         self._shot_vars = shot_vars
         self._line_vars = line_vars
 
+        # TODO: What about a projection sub-class that handles this more efficiently?
         # projection / ice drift correction properties
-        self.x = None
-        self.y = None
-        self.IceDriftCorrected = False
-        self.IceCoordinateSystem = None
+        self.is_drift_corrected = False
         self.projection = None
+        self.custom_reftime = None
 
         # add new weights field
         self.set_weights()
@@ -570,16 +569,34 @@ class ALSPointCloudData(object):
         # Update the metadata now with the data in place
         self._set_metadata()
 
-    def init_IceDriftCorrection(self):
-        """
-        Initializes (x, y) cartesian coordinates used for icedrift correction
-        :return:
-        """
-        self.x = np.empty(self.get("longitude").shape) * np.NaN
-        self.y = np.empty(self.get("longitude").shape) * np.NaN
-
     def set_debug_data(self, **kwargs):
         self.debug_data.update(kwargs)
+
+    def set_icedrift_correction(self,
+                                x: np.ndarray,
+                                y: np.ndarray,
+                                lon: np.ndarray,
+                                lat: np.ndarray,
+                                projection: Dict,
+                                reference_time: datetime
+                                ) -> None:
+        """
+        Sets the icedrift correction
+
+        :param x: the x-coordinate
+        :param y: the y-coordindate
+        :param lon: the drift corrected longitude
+        :param lat: the drift corrected latitude
+        :param projection: The projection dictionary
+        :param reference_time: The new reference time for the projection
+        """
+        self._shot_vars["x"] = x
+        self._shot_vars["y"] = y
+        self._shot_vars["longitude"] = lon
+        self._shot_vars["latitude"] = lat
+        self.projection = projection
+        self.custom_reftime = reference_time
+        self.is_drift_corrected = True
 
     def sanitize(self):
         """
