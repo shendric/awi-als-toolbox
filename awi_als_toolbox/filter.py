@@ -143,6 +143,11 @@ class AtmosphericBackscatterFilter(ALSPointCloudFilter):
         return np.where(is_spike)[0]
 
 
+# TODO: This class needs to be refactored (different sources for reference stations)
+# TODO: Add option to directly supply GeoReferencestation data as csv file
+# TODO: Update icedrift API
+# TODO: Ensure that icedrift and floenavi are not required imports
+# TODO: Move functionality to get floenavi master solutions into the floenavi package
 class IceDriftCorrection(ALSPointCloudFilter):
     """
     Corrects for ice drift during data aquisition, using floenavi or Polarstern position
@@ -159,7 +164,7 @@ class IceDriftCorrection(ALSPointCloudFilter):
 
         self.icecs = None
 
-    def apply(self, als):
+    def apply(self, als: "ALSPointCloudData") -> None:
         """
         Apply the filter for all lines in the ALS data container
 
@@ -202,8 +207,12 @@ class IceDriftCorrection(ALSPointCloudFilter):
 
         als.projection = dict(name=attrs['grid_mapping_name'], attrs=attrs)
 
-    def _get_IceDriftStation(self, als, use_polarstern=False):
+    def _get_IceDriftStation(self,
+                             als: "ALSPointCloudData",
+                             use_polarstern: bool = False
+                             ) -> None:
         """
+        Set the ice coordinate system from a reference station.
 
         :param als:
         :param use_polarstern:
