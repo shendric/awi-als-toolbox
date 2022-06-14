@@ -233,18 +233,19 @@ class IceDriftCorrection(ALSPointCloudFilter):
         als_geo_pos, als_idx = self.get_als_geopos(als)
 
         # Init (x, y) coordinates
-        x = np.full(np.nan, als.dims)
+        x = np.full(als.dims, np.nan)
         y = x.copy()
         lon = x.copy()
         lat = x.copy()
 
         # Compute (x, y) ice coordinates
         icepos, icecs_transform = self.icecs.get_xy_coordinates(als_geo_pos, transform_output=True)
-        x[als_idx], y[als_idx] = icepos.x, icepos.y
+        x[als_idx], y[als_idx] = icepos.xc, icepos.yc
 
         # Update longitude, latitude values to reflect the (x, y) positions in the
         # ice coordinate system at the shared reference time
-        geopos = self.icecs.get_latlon_coordinates(icepos.x, icepos.y, self.reference_time)
+        reference_time = self.reference_time if self.reference_time not in ["auto", None] else als.ref_time_dt
+        geopos = self.icecs.get_latlon_coordinates(icepos.xc, icepos.yc, reference_time)
         lon[als_idx], lat[als_idx] = geopos.longitude, geopos.latitude
 
         # Get the projection parameters
