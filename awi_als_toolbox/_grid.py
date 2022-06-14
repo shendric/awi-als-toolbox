@@ -62,8 +62,6 @@ class AlsDEM(object):
         self._dem_mask = None    # Array containing the mask for the grid
         self._n_shots = None     # Array containing the number of echoes per grid cell
 
-        self.IceDriftCorrection = None
-
     def create(self):
         """
         Grids irregular laser scanner points to regular grid
@@ -72,16 +70,7 @@ class AlsDEM(object):
         # TODO: Properly validate data
 
         # Project lon/lat coordinates of shots into cartesian coordinate system
-        # If Ice Drift Correction is used no projection is needed
-        try:
-            self.x = self.als.x
-            self.y = self.als.y
-            self.IceDriftCorrection = True
-            self.cfg.grid_mapping = self.als.projection
-            logger.info("IceDriftCorrection detected")
-        except AttributeError:
-            self._proj()
-            self.IceDriftCorrection = False
+        self._proj()
 
         # Grid the data of all variables
         self._griddata()
@@ -224,15 +213,7 @@ class AlsDEM(object):
         self.nonan = np.where(np.logical_or(np.isfinite(self.x), np.isfinite(self.y)))
 
         # Compute longitude, latitude values for grid (x, y) coordinates
-        # IDC check if self.als has attribute x,y
-        # IDC TODO reverse the IceDriftCorrection is needed here!
-        # IDC else:
-        if self.IceDriftCorrection:
-            reftime = self.als.tcs_segment_datetime + 0.5*(self.als.tce_segment_datetime-self.als.tcs_segment_datetime)
-            icepos = self.als.IceCoordinateSystem.get_latlon_coordinates(self.dem_x, self.dem_y, reftime)
-            self.lon, self.lat = icepos.longitude, icepos.latitude
-        else:
-            self.lon, self.lat = self.p(self.dem_x, self.dem_y, inverse=True)
+        self.lon, self.lat = self.p(self.dem_x, self.dem_y, inverse=True)
 
         # Execute the gridding for all variables
         # Compute vertices and weights of the triangulation
@@ -1167,31 +1148,6 @@ class ALSMergedGrid(object):
                 grid_dims, self.grid[grid_variable_name].astype(np.float32),
                 attrs=self.cfg.get_var_attrs(grid_variable_name)
             )
-
-        self.reftime = datetime(1970, 1, 1, 0, 0, 0) + timedelta(0, np.mean(self.reftimes))
-
-        # TODO: An file export routine should not change the state of the data
-        if recompute_latlon:
-
-            try:
-                from floenavi.polarstern import PolarsternAWIDashboardPos
-                from icedrift import GeoReferenceStation, IceCoordinateSystem, GeoPositionData
-                logger.info("Compute ice drift corrected lat/lon values for same reference time")
-
-                refstat = PolarsternAWIDashboardPos(self.reftime, self.reftime).reference_station
-
-                xc, yc = np.meshgrid(self.xc, self.yc)
-
-                # TODO: Change towards global
-                icecs = IceCoordinateSystem(refstat)
-                icepos, self.heading = icecs.get_latlon_coordinates(
-                    xc, yc, self.reftime, proj4str=self.proj4str, return_heading=True)
-
-                self.lons = icepos.longitude
-                self.lats = icepos.latitude
-            # TODO: This should raise an ImportError
-            except ImportError:
-                logger.error("Install packages floenavi and icedrift for ice drift corrected lat/lon values")
 
         data_vars["lon"] = xr.Variable(grid_dims, self.lons.astype(np.float64),
                                        attrs=self.cfg.get_var_attrs("lon"))
