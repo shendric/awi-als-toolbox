@@ -135,6 +135,7 @@ class AirborneLaserScannerFile(object):
                 bindat = f.read(nbytes)
 
                 # Parse the line bytes
+                # TODO: add proper error message
                 try:
                     line_data = self.line_parser.parse(bindat)
                 except:
