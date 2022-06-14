@@ -253,7 +253,7 @@ class IceDriftCorrection(ALSPointCloudFilter):
         projection_dict = dict(name=projection_attrs['grid_mapping_name'], attrs=projection_attrs)
 
         # Update the ALS point cloud dataset
-        als.set_icedrift_correction(x, y, lon, lat, projection_dict, self.reference_time)
+        als.set_icedrift_correction(x, y, lon, lat, projection_dict, reference_time)
 
     @staticmethod
     def get_als_geopos(als: "ALSPointCloudData") -> Tuple["GeoPositionData", np.ndarray]:
