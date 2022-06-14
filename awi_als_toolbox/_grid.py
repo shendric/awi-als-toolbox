@@ -610,9 +610,16 @@ class AlsDEMCfg(object):
         """
         input_filter_classes = []
         for input_filter_def in self.input_filter:
-            obj = get_cls("awi_als_toolbox.filter", input_filter_def["pyclass"])
+            class_name = input_filter_def["pyclass"]
+            obj = get_cls("awi_als_toolbox.filter", class_name)
+            option_dict = input_filter_def["keyw"]
             if obj is not None:
-                input_filter_classes.append(obj(**input_filter_def["keyw"]))
+                try:
+                    input_filter_classes.append(obj(**option_dict))
+                except TypeError as e:
+                    msg = f"Could not init class {class_name} with option dictionary {option_dict}, incorrect config?"
+                    logger.error(msg)
+                    raise TypeError() from e
             else:
                 raise ImportError(f'Cannot find class awi_als_toolbox.filter.{input_filter_def["pyclass"]}')
 
