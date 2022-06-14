@@ -721,6 +721,10 @@ class ALSPointCloudData(object):
         return tcs + 0.5 * (tce - tcs)
 
     @property
+    def ref_time_dt(self):
+        return datetime.utcfromtimestamp(self.ref_time)
+
+    @property
     def time_bnds(self):
         tcs, tce = self.tcs_segment_time, self.tce_segment_time
         return [tcs, tce]
