@@ -49,9 +49,7 @@ class AlsDEM(object):
         self.als = als
         self.metadata = als.metadata.copy()
         self.processing_level = "Level-3 Collated (l3c)"
-        if cfg is None:
-            cfg = AlsDEMCfg()
-        self.cfg = cfg
+        self.cfg = cfg if cfg is not None else AlsDEMCfg()
 
         # Init class properties
         # A dictionary for storing the grid variables
