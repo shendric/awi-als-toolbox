@@ -9,6 +9,7 @@ from cached_property import cached_property
 
 import numpy as np
 from datetime import datetime
+from typing import Union
 from construct import Struct, Array, Double, Single, Byte
 
 
@@ -82,13 +83,18 @@ class AirborneLaserScannerFile(object):
     def get_data(self,
                  start_seconds: int = None,
                  end_seconds: int = None,
-                 sanitize: bool = True) -> "ALSPointCloudData":
+                 sanitize: bool = True,
+                 raise_on_error: bool = False
+                 ) -> Union["ALSPointCloudData", None]:
         """
         Read a subset of the ALS data and return its content. The subset is selected with the (integer) seconds of
         the day. If `start_seconds` and `end_seconds` are omitted, the maximum range will be used
-        :param start_seconds: (int) Start of the subset in seconds of the day
-        :param end_seconds: (int) End of the subset in seconds of the day
-        :param sanitize: (bool) Flag whether to filter illegal entries (out of bound lat/lons)
+
+        :param start_seconds: Start of the subset in seconds of the day (default: first second in file)
+        :param end_seconds: End of the subset in seconds of the day (default: last second in file)
+        :param sanitize: Flag whether to filter illegal entries, such as invalid lat/lons. (default: False)
+        :param raise_on_error: Flag whether to raise an exception or return None at a parsing error (default: False)
+
         :return: an ALSData object containing the data subset
         """
 
@@ -135,11 +141,15 @@ class AirborneLaserScannerFile(object):
                 bindat = f.read(nbytes)
 
                 # Parse the line bytes
-                # TODO: add proper error message
                 try:
                     line_data = self.line_parser.parse(bindat)
-                except:
-                    breakpoint()
+                except struct.error as exception:
+                    msg = f"Failed to get binary data from {start_seconds}-{end_seconds} [{self.filepath.name}]"
+                    logger.error(msg)
+                    logger.error("Potential reasons: Out of bounds or corrupt ALS binary file")
+                    if not raise_on_error:
+                        return None
+                    raise ValueError from exception
 
                 # Transfer parsed variables to data container
                 for shot_var_name in shot_vars.keys():
